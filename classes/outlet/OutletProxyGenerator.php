@@ -49,8 +49,9 @@ class OutletProxyGenerator {
 		foreach ($this->config->getEntities() as $entity) {
 			$clazz = $entity->clazz;
 
-			$c .= "if (!class_exists('{$clazz}_OutletProxy', false)) { class {$clazz}_OutletProxy extends $clazz implements OutletProxy { \n";
-			$c .= "  static \$_outlet; \n";
+			$c .= "if (!class_exists('{$clazz}_OutletProxy', false)) {\n";
+			$c .= "  class {$clazz}_OutletProxy extends $clazz implements OutletProxy { \n";
+			$c .= "    static \$_outlet; \n";
 
 			foreach ($entity->getAssociations() as $assoc) {
 				switch ($assoc->getType()) {
@@ -61,9 +62,11 @@ class OutletProxyGenerator {
 					default: throw new Exception("invalid association type: {$assoc->getType()}");
 				}
 			}
-			$c .= "} }\n";
+			$c .= "  }\n";
+			$c .= "}\n";
 		}
 
+//print_r($c);
 		return $c;
 	}
 
@@ -74,71 +77,79 @@ class OutletProxyGenerator {
 	 */
 	function createOneToOneFunctions (OutletAssociationConfig $config) {
 		$foreign	= $config->getForeign();
-		$key 		= $config->getKey();
+		$keys 		= $config->getKeys();
 		$getter 	= $config->getGetter();
 		$setter		= $config->getSetter();
-		if ($config->getLocalUseGettersAndSetters())
-			$key = 'get'.$key.'()';
+		if ($config->getLocalUseGettersAndSetters()) {
+			$keyPrefix = 'get';
+			$keySuffix = '()';
+		}
 
 		$c = '';
-		$c .= "  function $getter() { \n";
-		$c .= "	if (is_null(\$this->$key)) return parent::$getter(); \n";
-		$c .= "	if (is_null(parent::$getter()) && \$this->$key) { \n";
-		$c .= "	  parent::$setter( self::\$_outlet->load('$foreign', \$this->$key) ); \n";
-		$c .= "	} \n";
-		$c .= "	return parent::$getter(); \n";
-		$c .= "  } \n";
+		$c .= "    public function $getter() { \n";
+		$c .= "	     if (" . Outlet::combineArgs($keys, "is_null(\$this->$keyPrefix", "$keySuffix)") . ") return parent::$getter(); \n";
+		$c .= "	     if (is_null(parent::$getter()) && " . Outlet::combineArgs($keys, "\$this->$keyPrefix", $keySuffix) . ") { \n";
+		$c .= "        parent::$setter( Outlet::getInstance()->load('$foreign', array(" . Outlet::combineArgs($keys, "\$this->$keyPrefix", $keySuffix, ", ") . ") ) ); \n";
+		$c .= "      } \n";
+		$c .= "	     return parent::$getter(); \n";
+		$c .= "    } \n";
 
 		return $c;
 	}
 
 	/**
-	 * Generates the code to support one to many associations
-	 * @param OutletAssociationConfig $config configuration
+	 * generates the code to support one to many associations
+	 * @param outletassociationconfig $config configuration
 	 * @return string one to many functions code
 	 */
-	function createOneToManyFunctions (OutletAssociationConfig $config) {
-		$foreign	= $config->getForeign();
-		$foreignname	= $config->getForeignName();
-		$key 		= $config->getKey();
-		$pk_prop 	= $config->getRefKey();
+	function createonetomanyfunctions (outletassociationconfig $config) {
+		$foreign	= $config->getforeign();
+		$foreignname	= $config->getforeignname();
+		$keys 		= $config->getKeys();
+		$pk_props	= $config->getRefKeys();
 		$getter		= $config->getGetter();
 		$setter		= $config->getSetter();
-		if ($config->getLocalUseGettersAndSetters())
-			$pk_prop = 'get'.$pk_prop.'()';
+		if ($config->getLocalUseGettersAndSetters()) {
+			$keyPrefix = 'get';
+			$keySuffix = '()';
+		}
 
 		$c = '';
-		$c .= "  function {$getter}() { // one-to-many getter\n";
-		$c .= "	\$args = func_get_args(); \n";
-		$c .= "	if (count(\$args)) { \n";
-		$c .= "	  if (is_null(\$args[0])) return parent::{$getter}(); \n";
-		$c .= "	  \$q = \$args[0]; \n";
-		$c .= "	} else { \n";
-		$c .= "	  \$q = ''; \n";
-		$c .= "	} \n";
-		$c .= "	if (isset(\$args[1])) \$params = \$args[1]; \n";
-		$c .= "	else \$params = array(); \n";
+		$c .= "    public function {$getter}() { // one-to-many getter\n";
+		$c .= "      \$args = func_get_args(); \n";
+		$c .= "      if (count(\$args)) { \n";
+		$c .= "        if (is_null(\$args[0])) return parent::{$getter}(); \n";
+		$c .= "        \$qExtras = \$args[0]; \n";
+		$c .= "      } else { \n";
+		$c .= "        \$qExtras = ''; \n";
+		$c .= "      } \n";
+		$c .= "      if (isset(\$args[1])) \$params = \$args[1]; \n";
+		$c .= "      else \$params = array(); \n";
 
 		// if there's a where clause
-		//$c .= "	echo \$q; \n";
-		$c .= "	\$q = trim(\$q); \n";
-		$c .= "	if (stripos(\$q, 'where') !== false) { \n";
-		$c .= "	  \$q = '{"."$foreign.$key} = '.\$this->$pk_prop.' and ' . substr(\$q, 5); \n";
-		$c .= "	} else { \n";
-		$c .= "	  \$q = '{"."$foreign.$key} = '.\$this->$pk_prop. ' ' . \$q; \n";
-		$c .= "	}\n";
-		//$c .= "	echo \"<h2>\$q</h2>\"; \n";
+		//$c .= "  	echo \$qExtras; \n";
+		//$c .= "      \$q = trim(\$q); \n";
+		$c .= "      if (stripos(\$qExtras, 'where') !== false) { \n";
+                $c .= "        \$qExtras = ' and ' . substr(\$qExtras, 5); \n";
+		$c .= "	     }\n";
+		$c .= "      \$q = ''; \n";
+		for ($i = 0; $i < count($keys); $i++) {
+			$c .= "        \$q .= '{"."$foreign.{$keys[$i]}} = \''.\$this->{$keyPrefix}{$keys[$i]}{$keySuffix}.'\' " . ($i != count($keys) - 1 ? "and " : "") . "'; \n";
+		}
+		$c .= "        \$q .= \$qExtras; \n";
+		//$c .= "  	echo \"<h2>$foreign, \$q</h2>\"; \n";
 
-		$c .= "	\$query = self::\$_outlet->from('$foreign')->where(\$q, \$params); \n";
-		$c .= "	\$cur_coll = parent::{$getter}(); \n";
+		$c .= "      \$query = self::\$_outlet->from('$foreign')->where(\$q, \$params); \n";
+//$c .= "print_pre(\$params);";
+		$c .= "	     \$cur_coll = parent::{$getter}(); \n";
 		
 		// only set the collection if the parent is not already an OutletCollection
 		// or if the query is different from the previous query
-		$c .= "	if (!\$cur_coll instanceof OutletCollection || \$cur_coll->getQuery() != \$query) { \n";
-		$c .= "	  parent::{$setter}( new OutletCollection( \$query ) ); \n";
-		$c .= "	} \n";
-		$c .= "	return parent::{$getter}(); \n";
-		$c .= "  } \n";
+		$c .= "	     if (!\$cur_coll instanceof OutletCollection || \$cur_coll->getQuery() != \$query) { \n";
+		$c .= "	       parent::{$setter}( new OutletCollection( \$query ) ); \n";
+		$c .= "	     } \n";
+		$c .= "	     return parent::{$getter}(); \n";
+		$c .= "    } \n";
 
 		return $c;
 	}
@@ -151,27 +162,36 @@ class OutletProxyGenerator {
 	function createManyToManyFunctions (OutletManyToManyConfig $config) {
 		$foreign	= $config->getForeign();
 
-		$tableKeyLocal 		= $config->getTableKeyLocal();
-		$tableKeyForeign 	= $config->getTableKeyForeign();
+		$tableKeysLocal 		= $config->getTableKeysLocal();
+		$tableKeysForeign 	= $config->getTableKeysForeign();
 
-		$pk_prop 	= $config->getKey();
-		$ref_pk		= $config->getRefKey();
+		$pk_props	= $config->getKeys();
+		$ref_pks	= $config->getRefKeys();
 		$getter		= $config->getGetter();
 		$setter		= $config->getSetter();
 		$table		= $config->getLinkingTable();
 		if ($config->getForeignUseGettersAndSetters())
 			$ref_pk = 'get'.$ref_pk.'()';
 
-		$c = '// pk_prop: ' . $pk_prop . ', otherKey: ' . $otherKey . ', table: ' . $table . "\n";	
-		$c .= "  function {$getter}() { // many-to-many getter\n";
-		$c .= "	if (parent::$getter() instanceof OutletCollection) return parent::$getter(); \n";
-		//$c .= "	if (stripos(\$q, 'where') !== false) { \n";
-		$c .= "	\$q = self::\$_outlet->from('$foreign') \n";
-		$c .= "		->innerJoin('$table ON {$table}.{$tableKeyForeign} = {"."$foreign.$pk_prop}') \n";
-		$c .= "		->where('{$table}.{$tableKeyLocal} = ?', array(\$this->$ref_pk)); \n";
-		$c .= "	parent::{$setter}( new OutletCollection( \$q ) ); \n";
-		$c .= "	return parent::{$getter}(); \n";
-		$c .= "  } \n";
+		$c = '';// pk_prop: ' . $pk_prop . ', otherKey: ' . $otherKey . ', table: ' . $table . "\n";	
+		$c .= "    public function {$getter}() { // many-to-many getter\n";
+		$c .= "      if (parent::$getter() instanceof OutletCollection) return parent::$getter(); \n";
+		//$c .= "      if (stripos(\$q, 'where') !== false) { \n";
+		$c .= "      \$q = self::\$_outlet->from('$foreign') \n";
+		$c .= "        ->innerJoin('$table ON ";
+		for ($i = 0; $i < count($pk_props); $i++) {
+			$c .= "{$table}.{$tableKeysForeign[$i]} = {"."$foreign.".$pk_props[$i]."}";
+		}
+		$c .= "') \n";
+		$c .= "        ->where('" . Outlet::combineArgs($tableKeysLocal, '{'.$table.'.', '} = ?', " AND ") . "', array(";
+		for ($i = 0; $i < count($ref_pks); $i++) {
+			$c .= "\$this->" . $ref_pks[$i];
+      if ($i < count($ref_pks) - 1) $c .= ",";
+		}
+		$c .= ")); \n"; // FIXME - not composite key aware yet
+		$c .= "      parent::{$setter}( new OutletCollection( \$q ) ); \n";
+		$c .= "      return parent::{$getter}(); \n";
+		$c .= "    } \n";
 
 		return $c;
 	}
@@ -184,50 +204,60 @@ class OutletProxyGenerator {
 	function createManyToOneFunctions (OutletAssociationConfig $config) {
 		$local		= $config->getLocal();
 		$foreign	= $config->getForeign();
-		$key		= $config->getKey();
-		$refKey		= $config->getRefKey();
+		$keys 		= $config->getKeys();
+		$refKeys	= $config->getRefKeys();
 		$getter 	= $config->getGetter();
 		$setter		= $config->getSetter();
 
 		if ($config->getLocalUseGettersAndSetters()) {
-			$keyGetter = 'get'.$key.'()';
-		} else {
-			$keyGetter = $key;
+			$keyPrefix = 'get';
+                        $keySuffix = '()';
 		}
 		
 		if ($config->getForeignUseGettersAndSetters()) {
-			$refKey = 'get'.$refKey.'()';
+			$foreignKeyPrefix = 'get';
+                        $foreignKeySuffix = '()';
 		}
 
 		$c = '';
-		$c .= "  function $getter() { \n";
-		$c .= "	if (is_null(\$this->$keyGetter)) return parent::$getter(); \n";
-		$c .= "	if (is_null(parent::$getter())) { \n";//&& isset(\$this->$keyGetter)) { \n";
-		$c .= "	  parent::$setter( self::\$_outlet->load('$foreign', \$this->$keyGetter) ); \n";
-		$c .= "	} \n";
-		$c .= "	return parent::$getter(); \n";
-		$c .= "  } \n";
+		$c .= "    public function $getter() { \n";
+		//$c .= "      if (is_null(\$this->$keyGetter)) return parent::$getter(); \n";
+		//$c .= "      if (is_null(parent::$getter())) { \n";//&& isset(\$this->$keyGetter)) { \n";
+                $c .= "      if (" . Outlet::combineArgs($keys, "is_null(\$this->$keyPrefix", "$keySuffix)") . ") return parent::$getter(); \n";
+                $c .= "      if (is_null(parent::$getter()) && " . Outlet::combineArgs($keys, "!is_null(\$this->$keyPrefix", "$keySuffix)") . ") { \n";
+		$c .= "        parent::$setter( self::\$_outlet->load('$foreign', array(" . Outlet::combineArgs($keys, "\$this->$keyPrefix", $keySuffix, ", ") . ") ) ); \n";
+		$c .= "      } \n";
+		$c .= "      return parent::$getter(); \n";
+		$c .= "    } \n";
 
-		$c .= "  function $setter($foreign \$ref".($config->isOptional() ? '=null' : '').") { \n";
-		$c .= "	if (is_null(\$ref)) { \n";
+		$c .= "    public function $setter($foreign \$ref".($config->isOptional() ? '=null' : '').") { \n";
+		$c .= "      if (is_null(\$ref)) { \n";
 
 		if ($config->isOptional()) {
-			$c .= "	  \$this->$keyGetter = null; \n";
+			foreach ($keys as $key) {
+				$c .= "        \$this->$key = null; \n";
+			}
 		} else {
-			$c .= "	  throw new OutletException(\"You can not set this to NULL since this relationship has not been marked as optional\"); \n";
+			$c .= "        throw new OutletException(\"You can not set this to NULL since this relationship has not been marked as optional\"); \n";
 		}
 
-		$c .= "	  return parent::$setter(null); \n";
-		$c .= "	} \n";
+		$c .= "        return parent::$setter(null); \n";
+		$c .= "      } \n";
 
-		//$c .= "	\$mapped = new OutletMapper(\$ref); \n";
-		//$c .= "	\$this->$key = \$mapped->getPK(); \n";
-		if ($config->getLocalUseGettersAndSetters())
-			$c .= "	\$this->set$key(\$ref->{$refKey}); \n";
-		else
-			$c .= "	\$this->$key = \$ref->{$refKey}; \n";
-		$c .= "	return parent::$setter(\$ref); \n";
-		$c .= "  } \n";
+		//$c .= "    \$mapped = new OutletMapper(\$ref); \n";
+		//$c .= "    \$this->$key = \$mapped->getPK(); \n";
+		if ($config->getLocalUseGettersAndSetters()) {
+			for ($i = 0; $i < count($keys); $i++) {
+				$c .= "      \$this->set" . $keys[$i] . "(\$ref->" . $refkeys[$i] . "; \n";
+			}
+		} else {
+			for ($i = 0; $i < count($keys); $i++) {
+				$c .= "      \$this->" . $keys[$i] . " = \$ref->" . $refKeys[$i] . "; \n";
+			}
+		}
+
+		$c .= "      return parent::$setter(\$ref); \n";
+		$c .= "    } \n";
 
 		return $c;
 	}

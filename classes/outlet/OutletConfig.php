@@ -381,7 +381,7 @@ class OutletEntityConfig {
 	 */
 	function getProperty ($prop) {
 		if (!isset($this->props[$prop])) {
-			throw new OutletConfigException('Entity ['.$this->getClass().'] does not have a property ['.$prop.'] defined in the configuration');
+			throw new OutletConfigException('Entity ['.$this->clazz.'] does not have a property ['.$prop.'] defined in the configuration');
 		}
 		
 		return $this->props[$prop];
@@ -635,19 +635,19 @@ class OutletOneToManyConfig extends OutletAssociationConfig {
 	 * Retrieves the local key
 	 * @return mixed local key
 	 */
-	public function getKey() {
-		return $this->options['key'];
+	public function getKeys () {
+		return explode(",", $this->options['key']);
 	}
 	
 	/**
 	 * Retrieves the reference key
 	 * @return mixed reference key
 	 */
-	function getRefKey () {
+	public function getRefKeys () {
 		if (isset($this->options['refKey'])) {
-			return $this->options['refKey'];
+			return explode(",", $this->options['refKey']);
 		} else {
-			return current($this->config->getEntity($this->local)->getPkFields());
+			return $this->config->getEntity($this->local)->getPkFields();
 		}
 	}
 }
@@ -680,19 +680,19 @@ class OutletManyToOneConfig extends OutletAssociationConfig {
 	 * Retrieves the local key
 	 * @return mixed local key
 	 */
-	public function getKey() {
-		return $this->options['key'];
+	public function getKeys () {
+		return explode(",", $this->options['key']);
 	}
 	
 	/**
 	 * Retrieves the reference key
 	 * @return mixed reference key
 	 */
-	function getRefKey () {
+	public function getRefKeys () {
 		if (isset($this->options['refKey'])) {
-			return $this->options['refKey'];
+			return explode(",", $this->options['refKey']);
 		} else {
-			return current($this->config->getEntity($this->foreign)->getPkFields());
+			return $this->config->getEntity($this->foreign)->getPkFields();
 		}
 	}
 }
@@ -724,19 +724,19 @@ class OutletOneToOneConfig extends OutletAssociationConfig {
 	 * Retrieves the local key
 	 * @return mixed local key
 	 */
-	public function getKey () {
-		return $this->options['key'];
+	public function getKeys () {
+		return explode(",", $this->options['key']);
 	}
 	
 	/**
 	 * Retrieves the reference key
 	 * @return mixed reference key
 	 */
-	function getRefKey () {
+	public function getRefKeys () {
 		if (isset($this->options['refKey'])) {
-			return $this->options['refKey'];
+			return explode(",", $this->options['refKey']);
 		} else {
-			return current($this->config->getEntity($this->foreign)->getPkFields());
+			return $this->config->getEntity($this->foreign)->getPkFields();
 		}
 	}
 }
@@ -773,16 +773,16 @@ class OutletManyToManyConfig extends OutletAssociationConfig {
 	 * Retrieves the local table key
 	 * @return mixed local table key
 	 */
-	public function getTableKeyLocal () {
-		return $this->tableKeyLocal;
+	public function getTableKeysLocal () {
+		return explode(",", $this->tableKeyLocal);
 	}
 	
 	/**
 	 * Retrieves the foreign table key
 	 * @return mixed foreign table key
 	 */
-	public function getTableKeyForeign () {
-		return $this->tableKeyForeign;
+	public function getTableKeysForeign () {
+		return explode(",", $this->tableKeyForeign);
 	}
 	
 	/**
@@ -797,11 +797,11 @@ class OutletManyToManyConfig extends OutletAssociationConfig {
 	 * Retrieves the local key
 	 * @return mixed local key
 	 */
-	function getKey () {
+	public function getKeys () {
 		if (isset($this->options['key'])) {
-			return $this->options['key'];
+			return explode(",", $this->options['key']);
 		} else {
-			return current($this->config->getEntity($this->foreign)->getPkFields());
+			return $this->config->getEntity($this->foreign)->getPkFields();
 		}
 	}
 
@@ -809,11 +809,11 @@ class OutletManyToManyConfig extends OutletAssociationConfig {
 	 * Retrieves the reference key
 	 * @return mixed reference key
 	 */
-	function getRefKey () {
+	public function getRefKeys () {
 		if (isset($this->options['refKey'])) {
-			return $this->options['refKey'];
+			return explode(",", $this->options['refKey']);
 		} else {
-			return current($this->config->getEntity($this->local)->getPkFields());
+			return $this->config->getEntity($this->local)->getPkFields();
 		}
 	}
 }

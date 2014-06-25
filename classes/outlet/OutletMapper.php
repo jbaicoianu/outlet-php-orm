@@ -145,8 +145,12 @@ class OutletMapper {
 
 			$pk_props = $entityCfg->getPkFields();
 
+			$pk_args = array();
+			for ($i = 0; $i < count($pks); $i++) {
+				$pk_args[$pk_props[$i]] = $pks[$i];
+			}
 			$pk_q = array();
-			foreach ($pk_props as $pkp) {
+			foreach ($pk_args as $pkp=>$pka) {
 				$pk_q[] = '{'.$cls.'.'.$pkp.'} = ?';
 			}
 
@@ -162,7 +166,7 @@ class OutletMapper {
 			$row = $stmt->fetch(PDO::FETCH_ASSOC);
 			*/
 			$con = Outlet::getInstance()->getConnection();
-			$queryid = $con->generateQueryID($this->config->getEntity($cls)->table, array_combine($pk_props, $pks));
+			$queryid = $con->generateQueryID($this->config->getEntity($cls)->table, $pk_args);
 			$rows = $con->prepareAndExecute($q, array_values($pks), $queryid);
 
 
@@ -232,7 +236,7 @@ class OutletMapper {
 					continue;
 				}
 
-				$key 		= $assoc->getKey();
+				$keys 		= $assoc->getKeys();
 				$getter 	= $assoc->getGetter();
 				$setter		= $assoc->getSetter();
 				$foreign	= $assoc->getForeign();
@@ -255,8 +259,7 @@ class OutletMapper {
 
 				// if removing all connections
 				if ($children->isRemoveAll()) {	
-					/** @todo Make it work with composite keys */
-					$q = $this->processQuery('DELETE FROM {'.$foreign.'} WHERE {'.$foreign.'.'.$assoc->getKey().'} = ?');
+					$q = $this->processQuery('DELETE FROM {'.$foreign.'} WHERE ' . Outlet::combineArgs($keys, '{'.$foreign.'.', '} = ?', " and "));
 					/*
 					$stmt = $this->config->getConnection()->prepare($q);
 					$stmt->execute($pks);
@@ -265,9 +268,10 @@ class OutletMapper {
 				}
 
 				foreach (array_keys($children->getArrayCopy()) as $k) {
-					/** @todo make it work with composite keys */
 					$foreignEntityCfg = $this->config->getEntity($foreign);
-					$foreignEntityCfg->setProp($children[$k], $key, current($pks));
+          for ($i = 0; $i < count($keys); $i++) {
+            $foreignEntityCfg->setProp($children[$k], $keys[$i], $pks[$i]);
+          }
 					$this->save($children[$k]);
 				}
 
@@ -293,8 +297,8 @@ class OutletMapper {
 					continue;
 				}
 
-				$key_column = $assoc->getTableKeyLocal();
-				$ref_column = $assoc->getTableKeyForeign();
+				$key_columns = $assoc->getTableKeysLocal();
+				$ref_columns = $assoc->getTableKeysForeign();
 				$table      = $assoc->getLinkingTable();
 				$name       = $assoc->getForeignName();
 
@@ -306,8 +310,7 @@ class OutletMapper {
 				// if removing all connections
 				if ($children->isRemoveAll()) {
 					/** @todo Make it work with composite keys */
-					$q = "DELETE FROM $table WHERE $key_column = ?";
-
+					$q = "DELETE FROM $table WHERE " . Outlet::combineArgs($key_columns, "", " = ?", " AND");
 					/*
 					$stmt = $con->prepare($q);
 
@@ -318,6 +321,7 @@ class OutletMapper {
 
 				$new = $children->getLocalIterator();
 
+				$all_columns = array_merge($key_columns, $ref_columns);
 				foreach ($new as $child) {
 					if ($child instanceof OutletProxy) {
 						$child_pks = $this->config->getEntityForObject($child)->getPkValues($child);
@@ -327,9 +331,8 @@ class OutletMapper {
 					}
 
 					$q = "
-						INSERT INTO $table ($key_column, $ref_column) 
-						VALUES (?, ?)
-					";
+						INSERT INTO $table (" . implode(", ", $all_columns) . ") 
+						VALUES (" . implode(", ", array_fill(0, count($all_columns), "?")) . ")";
 
 					/*
 					$stmt = $con->prepare($q);
@@ -356,9 +359,9 @@ class OutletMapper {
 				continue;
 			}
 
-			$key    = $assoc->getKey();
-			$refKey	= $assoc->getRefKey();
-			$getter = $assoc->getGetter();
+			$keys    = $assoc->getKeys();
+			$refKeys = $assoc->getRefKeys();
+			$getter  = $assoc->getGetter();
 
 			$ent = $obj->$getter();
 
@@ -369,7 +372,9 @@ class OutletMapper {
 
 				$foreignEntityCfg = $this->config->getEntityForObject($ent);
 
-				$entityCfg->setProp($obj, $key, $foreignEntityCfg->getProp($ent, $refKey));
+        for ($i = 0; $i < count($refKeys); $i++) {
+  				$entityCfg->setProp($obj, $keys[$i], $foreignEntityCfg->getProp($ent, $refKeys[$i]));
+        }
 			}
 		}
 	}
@@ -385,9 +390,9 @@ class OutletMapper {
 				continue;
 			}
 
-			$key    = $assoc->getKey();
-			$refKey	= $assoc->getRefKey();
-			$getter = $assoc->getGetter();
+			$keys    = $assoc->getKeys();
+			$refKeys = $assoc->getRefKeys();
+			$getter  = $assoc->getGetter();
 
 			$ent = $obj->$getter();
 
@@ -396,7 +401,9 @@ class OutletMapper {
 					$this->save($ent);
 				}
 
-				$obj->$key = $ent->$refKey;
+        for ($i = 0; $i < count($keys); $i++) {
+					$obj->{$keys[$i]} = $ent->{$refKeys[$i]};
+        }
 			}
 		}
 	}

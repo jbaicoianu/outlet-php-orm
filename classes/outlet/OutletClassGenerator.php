@@ -39,8 +39,8 @@ class OutletClassGenerator {
 		$foreign	= $config->getForeign();
 		$foreignname	= $config->getForeignName();
 		$foreignplural	= $config->getForeignPlural();
-		$key 		= $config->getKey();
-		$pk_prop 	= $config->getRefKey();
+		//$keys 		= $config->getKeys();
+		//$pk_props = $config->getRefKeys();
 		$getter		= $config->getGetter();
 		$setter		= $config->getSetter();
 	
@@ -63,8 +63,8 @@ class OutletClassGenerator {
 	function createManyToOneFunctions (OutletAssociationConfig $config) {
 		$foreign	= $config->getForeign();
 		$foreignplural	= $config->getForeignPlural();
-		$key 		= $config->getKey();
-		$pk_prop 	= $config->getRefKey();
+		//$keys 		= $config->getKeys();
+		//$pk_props = $config->getRefKeys();
 		$getter		= $config->getGetter();
 		$setter		= $config->getSetter();
 	
@@ -81,8 +81,8 @@ class OutletClassGenerator {
 	}
 	function createOneToOneFunctions (OutletAssociationConfig $config) {
 		$foreign	= $config->getForeign();
-		$key 		= $config->getKey();
-		$getter 	= $config->getGetter();
+		//$keys 		= $config->getKeys();
+		$getter 	= $config->getGetters();
 		$setter		= $config->getSetter();
 
 		 $c = '';
@@ -97,19 +97,17 @@ class OutletClassGenerator {
  		 return $c;
 	}
 	function createManyToManyFunctions (OutletManyToManyConfig $config) {
-                $foreign        = $config->getForeign();
+		$foreign        = $config->getForeign();
 		$foreignplural	= $config->getForeignPlural();
 
-                $tableKeyLocal          = $config->getTableKeyLocal();
-                $tableKeyForeign        = $config->getTableKeyForeign();
+		$tableKeyLocal          = $config->getTableKeyLocal();
+		$tableKeyForeign        = $config->getTableKeyForeign();
 
-                $pk_prop        = $config->getKey();
-                $ref_pk         = $config->getRefKey();
-                $getter         = $config->getGetter();
-                $setter         = $config->getSetter();
-                $table          = $config->getLinkingTable();
-
-
+		//$pk_props       = $config->getKeys();
+		//$ref_pk         = $config->getRefKeys();
+		$getter         = $config->getGetter();
+		$setter         = $config->getSetter();
+		$table          = $config->getLinkingTable();
 
 		$c = '';
 		$c .= "  private \$" . strtolower($foreignplural) . ";\n";

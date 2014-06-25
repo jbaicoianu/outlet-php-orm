@@ -222,7 +222,16 @@ class OutletQuery {
 			}
 		
 			$aliased_join = $with_aliased[$with_key];
-			$join_q .= "LEFT JOIN {".$assoc->getForeign()." ".$aliased_join."} ON {".$from_aliased.'.'.$assoc->getKey()."} = {".$with_aliased[$with_key].'.'.$assoc->getRefKey()."} \n";
+			//$join_q .= "LEFT JOIN {".$assoc->getForeign()." ".$aliased_join."} ON {".$from_aliased.'.'.$assoc->getKey()."} = {".$with_aliased[$with_key].'.'.$assoc->getRefKey()."} \n";
+			$keys = $assoc->getKeys();
+                        $assoc_keys = $config->getEntity($assoc->getForeign())->getPKColumns();
+
+			$join_q .= "LEFT JOIN {".$assoc->getForeign()." ".$aliased_join."} ON ";
+			$join_clauses = array();
+			for ($i = 0; $i < count($keys); $i++) {
+				$join_clauses[] = "{".$from_aliased.'.'.$keys[$i]."} = {".$with_aliased[$with_key].'.'.$assoc_keys[$i]."} ";
+			}
+			$join_q .= implode(" AND ", $join_clauses);
 		}
 		
 		$q = "SELECT ".implode(', ', $select_cols)." \n";
@@ -255,20 +264,23 @@ class OutletQuery {
 		
 		$res = array();
 		//while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+		$objs = array();
+		$collections = array();
+
 		foreach ($rows as $row) {
 			$data = array();
-			// Postgres returns columns as lowercase
-			// TODO: Maybe everything should be converted to lower in query creation / processing to avoid this
-			if ($outlet->getConnection()->getDialect() == 'pgsql')
+			if (true || $outlet->getConnection()->getDialect() == 'pgsql') {
 				foreach ($from_props as $key=>$p) {
 					$data[$p[0]] = $row[strtolower($from_aliased).'_'.strtolower($key)];
 				}
-			else
+			} else {
 				foreach ($from_props as $key=>$p) {
-					$data[$p[0]] = $row[strtolower($from_aliased).'_'.$key];
+					$data[$p[0]] = $row[$from_aliased.'_'.$key];
 				}
+			}
 
 			$obj = $outlet->getEntityForRow($entity_config, $data);
+			$objid = implode("/", ($entity_config->getPKValues($obj)));
 		
 			foreach ($with as $with_key=>$w) {
 				$a = $entity_config->getAssociation($w);
@@ -281,7 +293,36 @@ class OutletQuery {
 					
 					if ($a instanceof OutletOneToManyConfig)
 					{
-						// TODO: Implement...											 
+						if (true || $outlet->getConnection()->getDialect() == 'pgsql') {
+							foreach ($with_entity->getProperties() as $key=>$p) {
+								$data[$p[0]] = $row[strtolower($with_aliased[$with_key].'_'.$key)];
+							}
+						} else {
+							foreach ($with_entity->getProperties() as $key=>$p) {
+								$data[$p[0]] = $row[$with_aliased[$with_key].'_'.$key];
+							}
+						}
+						$f = $with_entity->getPkColumns();
+						
+						// check to see if we found any data for the related entity
+						// using the pk
+						$data_returned = false;
+						$pk_values = array();
+						foreach ($f as $k) {
+							if (!empty($data[$k])) {
+								$data_returned = true;
+								break;
+							}
+						}
+						
+						// If some data was returned, save it into in an array to be merged with this object once we've finished processing all the other rows
+						if ($data_returned) {
+							$childobj = $outlet->getEntityForRow($with_entity, $data);
+							$childobjid = implode("/", ($with_entity->getPKValues($childobj)));
+							$collections[$objid][$with_aliased[$with_key]][$childobjid] = $childobj;
+						} else if (!isset($collections[$objid][$with_aliased[$with_key]])) {
+							$collections[$objid][$with_aliased[$with_key]] = array();
+						}
 					}
 					elseif ($a instanceof OutletManyToManyConfig)
 					{
@@ -320,9 +361,28 @@ class OutletQuery {
 				}
 			}
 			
-			$res[] = $obj;
+			$objs[$objid] = $obj;
 		}
 		
+		// Finally, merge any collections we've accumulated, and put it back into indexed array form
+
+		foreach ($objs as $objid=>$obj) {
+			if (isset($collections[$objid])) {
+				foreach ($collections[$objid] as $with_type=>$with_objs) {
+					$a = $entity_config->getAssociation($with_type);
+
+					if ($a) {
+						$setter = $a->getSetter();
+						$collection = new Collection();
+						foreach ($with_objs as $wobj) {
+							$collection->add($wobj);
+						}
+						$obj->$setter($collection);
+					}
+				}
+			}
+			$res[] = $obj;
+		}
 		return $res;
 	}
 	

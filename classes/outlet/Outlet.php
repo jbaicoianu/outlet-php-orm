@@ -410,6 +410,17 @@ class Outlet {
 	public function onHydrate($callback) {
 		$this->mapper->onHydrate = $callback;
 	}
+
+  static public function combineArgs($args, $before="", $after="", $separator=" && ") {
+    $r = array();
+    if (!empty($args)) {
+      foreach ($args as $arg) {
+        $r[] = $before . $arg . $after;
+      }
+    }
+    return implode($separator, $r);
+  }
+
 }
 
 /**

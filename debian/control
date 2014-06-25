@@ -1,0 +1,10 @@
+Package: outlet-php-orm
+Version: $VERSION
+Section: web
+Priority: optional
+Architecture: all
+Depends: php5
+Maintainer: James Baicoianu <james@thefind.com>
+Description: Outlet PHP ORM
+  http://outlet-orm.org/
+

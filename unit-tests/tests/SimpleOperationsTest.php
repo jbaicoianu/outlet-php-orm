@@ -39,8 +39,10 @@ class SimpleOperationsTest extends OutletTestCase {
 		// test update when adding a relationship entity
 		$bug2 = new Bug;
 		$bug2->Title = 'Test bug 2';
+    $bug2->setProject($project);
 		$project->addBug( $bug2 );
 
+print_r($project);
 		$outlet->save($project);
 
 		$project = $outlet->load('Project', $project->getProjectID());
